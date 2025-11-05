@@ -45,13 +45,18 @@ class TestDirectFunctionCalls:
         assert "links" in result
         assert result["links"][0]["rel"] == "prometheus-ui"
         assert "up" in result["links"][0]["href"]
+        
+        # Verify timestamp was converted to ISO 8601
+        assert isinstance(result["result"][0]["value"][0], str)
+        assert "T" in result["result"][0]["value"][0]  # ISO format includes T separator
+        assert "Z" in result["result"][0]["value"][0]  # UTC indicator
 
     @pytest.mark.asyncio
     async def test_execute_range_query_with_context(self, mock_make_request):
         """Test execute_range_query with context for progress reporting."""
         mock_make_request.return_value = {
             "resultType": "matrix",
-            "result": [{"metric": {"__name__": "up"}, "values": [[1617898400, "1"]]}]
+            "result": [{"metric": {"__name__": "up"}, "values": [[1617898400, "1"], [1617898415, "1"]]}]
         }
 
         # Create mock context
@@ -83,6 +88,11 @@ class TestDirectFunctionCalls:
         # Verify result includes links
         assert "links" in result
         assert result["links"][0]["rel"] == "prometheus-ui"
+        
+        # Verify timestamps were converted to ISO 8601
+        assert isinstance(result["result"][0]["values"][0][0], str)
+        assert "T" in result["result"][0]["values"][0][0]
+        assert "Z" in result["result"][0]["values"][0][0]
 
     @pytest.mark.asyncio
     async def test_execute_range_query_without_context(self, mock_make_request):

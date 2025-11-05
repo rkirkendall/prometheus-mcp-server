@@ -1,15 +1,20 @@
 # Prometheus MCP Server
-[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-pab1it0%2Fprometheus--mcp--server-blue?logo=docker)](https://github.com/users/pab1it0/packages/container/package/prometheus-mcp-server)
-[![GitHub Release](https://img.shields.io/github/v/release/pab1it0/prometheus-mcp-server)](https://github.com/pab1it0/prometheus-mcp-server/releases)
-[![Codecov](https://codecov.io/gh/pab1it0/prometheus-mcp-server/branch/main/graph/badge.svg)](https://codecov.io/gh/pab1it0/prometheus-mcp-server)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-[![License](https://img.shields.io/github/license/pab1it0/prometheus-mcp-server)](https://github.com/pab1it0/prometheus-mcp-server/blob/main/LICENSE)
 
 A [Model Context Protocol][mcp] (MCP) server for Prometheus.
 
 This provides access to your Prometheus metrics and queries through standardized MCP interfaces, allowing AI assistants to execute PromQL queries and analyze your metrics data.
 
 [mcp]: https://modelcontextprotocol.io
+
+## Forked Changes
+
+This fork includes the following enhancements:
+
+- **Automatic timestamp conversion**: All Unix timestamps in query results are automatically converted to human-readable ISO 8601 format (e.g., `2021-04-08T16:14:08Z` instead of `1617898448`)
+- **Dashboard visualization links**: Query results include clickable links to view the data graphed in the Prometheus UI
+- **Enhanced LLM readability**: Timestamps in readable format allow AI assistants to better reason about time-series data
+
+Original repository: [pab1it0/prometheus-mcp-server](https://github.com/pab1it0/prometheus-mcp-server)
 
 ## Features
 
@@ -19,6 +24,8 @@ This provides access to your Prometheus metrics and queries through standardized
   - [x] Get metadata for specific metrics
   - [x] View instant query results
   - [x] View range query results with different step intervals
+- [x] **Automatic timestamp conversion** - Unix timestamps are automatically converted to ISO 8601 format (e.g., `2021-04-08T16:14:08Z`) for better readability
+- [x] **Interactive dashboard links** - Query results include links to visualize data in the Prometheus UI
 - [x] Authentication support
   - [x] Basic auth from environment variables
   - [x] Bearer token auth from environment variables
@@ -29,114 +36,58 @@ This provides access to your Prometheus metrics and queries through standardized
 The list of tools is configurable, so you can choose which tools you want to make available to the MCP client.
 This is useful if you don't use certain functionality or if you don't want to take up too much of the context window.
 
-## Getting Started
+## Installation
 
 ### Prerequisites
 
+- Python 3.10+ and [uv](https://github.com/astral-sh/uv) package manager
 - Prometheus server accessible from your environment
-- Docker Desktop (recommended) or Docker CLI
-- MCP-compatible client (Claude Desktop, VS Code, Cursor, Windsurf, etc.)
+- Cursor IDE (or other MCP-compatible client)
 
-### Installation Methods
+### Setup
 
-<details>
-<summary><b>Claude Desktop</b></summary>
+1. **Clone this repository:**
 
-Add to your Claude Desktop configuration:
+```bash
+git clone https://github.com/YOUR_USERNAME/prometheus-mcp-server.git
+cd prometheus-mcp-server
+```
+
+2. **Install dependencies:**
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv pip install -e .
+```
+
+3. **Configure Cursor MCP:**
+
+Add to your `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "prometheus": {
-      "command": "docker",
+    "prometheus-local": {
+      "command": "uv",
       "args": [
         "run",
-        "-i",
-        "--rm",
-        "-e",
-        "PROMETHEUS_URL",
-        "ghcr.io/pab1it0/prometheus-mcp-server:latest"
+        "--directory",
+        "/path/to/prometheus-mcp-server",
+        "python",
+        "-m",
+        "prometheus_mcp_server.main"
       ],
       "env": {
-        "PROMETHEUS_URL": "<your-prometheus-url>"
+        "PROMETHEUS_URL": "http://localhost:9090"
       }
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary><b>Claude Code</b></summary>
+Replace `/path/to/prometheus-mcp-server` with the actual path where you cloned this repository.
 
-Install via the Claude Code CLI:
-
-```bash
-claude mcp add prometheus --env PROMETHEUS_URL=http://your-prometheus:9090 -- docker run -i --rm -e PROMETHEUS_URL ghcr.io/pab1it0/prometheus-mcp-server:latest
-```
-</details>
-
-<details>
-<summary><b>VS Code / Cursor / Windsurf</b></summary>
-
-Add to your MCP settings in the respective IDE:
-
-```json
-{
-  "prometheus": {
-    "command": "docker",
-    "args": [
-      "run",
-      "-i",
-      "--rm",
-      "-e",
-      "PROMETHEUS_URL",
-      "ghcr.io/pab1it0/prometheus-mcp-server:latest"
-    ],
-    "env": {
-      "PROMETHEUS_URL": "<your-prometheus-url>"
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>Docker Desktop</b></summary>
-
-The easiest way to run the Prometheus MCP server is through Docker Desktop:
-
-<a href="https://hub.docker.com/open-desktop?url=https://open.docker.com/dashboard/mcp/servers/id/prometheus/config?enable=true">
-  <img src="https://img.shields.io/badge/+%20Add%20to-Docker%20Desktop-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Add to Docker Desktop" />
-</a>
-
-1. **Via MCP Catalog**: Visit the [Prometheus MCP Server on Docker Hub](https://hub.docker.com/mcp/server/prometheus/overview) and click the button above
-   
-2. **Via MCP Toolkit**: Use Docker Desktop's MCP Toolkit extension to discover and install the server
-
-3. Configure your connection using environment variables (see Configuration Options below)
-
-</details>
-
-<details>
-<summary><b>Manual Docker Setup</b></summary>
-
-Run directly with Docker:
-
-```bash
-# With environment variables
-docker run -i --rm \
-  -e PROMETHEUS_URL="http://your-prometheus:9090" \
-  ghcr.io/pab1it0/prometheus-mcp-server:latest
-
-# With authentication
-docker run -i --rm \
-  -e PROMETHEUS_URL="http://your-prometheus:9090" \
-  -e PROMETHEUS_USERNAME="admin" \
-  -e PROMETHEUS_PASSWORD="password" \
-  ghcr.io/pab1it0/prometheus-mcp-server:latest
-```
-</details>
+4. **Restart Cursor** to load the MCP server
 
 ### Configuration Options
 

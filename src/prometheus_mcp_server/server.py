@@ -200,6 +200,74 @@ def make_prometheus_request(endpoint, params=None):
         logger.error("Unexpected error during Prometheus request", endpoint=endpoint, url=url, error=str(e), error_type=type(e).__name__)
         raise
 
+def convert_timestamp_to_iso(timestamp: Union[int, float]) -> str:
+    """Convert Unix timestamp to ISO 8601 format.
+    
+    Args:
+        timestamp: Unix timestamp (seconds since epoch)
+        
+    Returns:
+        ISO 8601 formatted timestamp string (UTC)
+    """
+    from datetime import timezone
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+def convert_prometheus_response_timestamps(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert all Unix timestamps in Prometheus response to ISO 8601 format.
+    
+    This makes the data more readable for LLMs by converting Unix seconds
+    (e.g., 1617898448) to human-readable format (e.g., "2021-04-08T19:27:28Z").
+    
+    Args:
+        data: Prometheus API response data
+        
+    Returns:
+        Data with timestamps converted to ISO 8601 strings
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    result_type = data.get("resultType")
+    result = data.get("result", [])
+    
+    if not isinstance(result, list):
+        return data
+    
+    converted_result = []
+    for item in result:
+        if not isinstance(item, dict):
+            converted_result.append(item)
+            continue
+            
+        converted_item = item.copy()
+        
+        # Handle instant query results: {"metric": {...}, "value": [timestamp, "value"]}
+        if "value" in item and isinstance(item["value"], list) and len(item["value"]) == 2:
+            timestamp, value = item["value"]
+            if isinstance(timestamp, (int, float)):
+                converted_item["value"] = [convert_timestamp_to_iso(timestamp), value]
+        
+        # Handle range query results: {"metric": {...}, "values": [[timestamp1, "value1"], [timestamp2, "value2"], ...]}
+        if "values" in item and isinstance(item["values"], list):
+            converted_values = []
+            for value_pair in item["values"]:
+                if isinstance(value_pair, list) and len(value_pair) == 2:
+                    timestamp, value = value_pair
+                    if isinstance(timestamp, (int, float)):
+                        converted_values.append([convert_timestamp_to_iso(timestamp), value])
+                    else:
+                        converted_values.append(value_pair)
+                else:
+                    converted_values.append(value_pair)
+            converted_item["values"] = converted_values
+        
+        converted_result.append(converted_item)
+    
+    return {
+        "resultType": result_type,
+        "result": converted_result
+    }
+
 def get_cached_metrics() -> List[str]:
     """Get metrics list with caching to improve completion performance.
 
@@ -247,7 +315,8 @@ async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any
         time: Optional RFC3339 or Unix timestamp (default: current time)
         
     Returns:
-        Query result with type (vector, matrix, scalar, string) and values
+        Query result with type (vector, matrix, scalar, string) and values.
+        Timestamps are automatically converted to ISO 8601 format for readability.
     """
     params = {"query": query}
     if time:
@@ -256,9 +325,12 @@ async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any
     logger.info("Executing instant query", query=query, time=time)
     data = make_prometheus_request("query", params=params)
 
+    # Convert timestamps to ISO 8601 format for LLM readability
+    converted_data = convert_prometheus_response_timestamps(data)
+    
     result = {
-        "resultType": data["resultType"],
-        "result": data["result"]
+        "resultType": converted_data["resultType"],
+        "result": converted_data["result"]
     }
 
     if not config.disable_prometheus_links:
@@ -300,7 +372,8 @@ async def execute_range_query(query: str, start: str, end: str, step: str, ctx: 
         step: Query resolution step width (e.g., '15s', '1m', '1h')
         
     Returns:
-        Range query result with type (usually matrix) and values over time
+        Range query result with type (usually matrix) and values over time.
+        Timestamps are automatically converted to ISO 8601 format for readability.
     """
     params = {
         "query": query,
@@ -321,9 +394,12 @@ async def execute_range_query(query: str, start: str, end: str, step: str, ctx: 
     if ctx:
         await ctx.report_progress(progress=50, total=100, message="Processing query results...")
 
+    # Convert timestamps to ISO 8601 format for LLM readability
+    converted_data = convert_prometheus_response_timestamps(data)
+    
     result = {
-        "resultType": data["resultType"],
-        "result": data["result"]
+        "resultType": converted_data["resultType"],
+        "result": converted_data["result"]
     }
 
     if not config.disable_prometheus_links:
