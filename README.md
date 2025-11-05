@@ -49,7 +49,7 @@ This is useful if you don't use certain functionality or if you don't want to ta
 1. **Clone this repository:**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/prometheus-mcp-server.git
+git clone https://github.com/rkirkendall/prometheus-mcp-server.git
 cd prometheus-mcp-server
 ```
 
