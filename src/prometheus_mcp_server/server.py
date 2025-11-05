@@ -329,6 +329,7 @@ async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any
     converted_data = convert_prometheus_response_timestamps(data)
     
     result = {
+        "query": query,
         "resultType": converted_data["resultType"],
         "result": converted_data["result"]
     }
@@ -398,6 +399,10 @@ async def execute_range_query(query: str, start: str, end: str, step: str, ctx: 
     converted_data = convert_prometheus_response_timestamps(data)
     
     result = {
+        "query": query,
+        "start": start,
+        "end": end,
+        "step": step,
         "resultType": converted_data["resultType"],
         "result": converted_data["result"]
     }
